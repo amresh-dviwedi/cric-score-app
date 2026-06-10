@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>🏏 Sarv Cricket — Shared Stats Tracker</title>
+  <title>🏏 Sarv Cricket — Live Shared Scoreboard</title>
   <!-- Google Fonts + modern styling -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
   <style>
@@ -23,7 +23,6 @@
       justify-content: center;
     }
 
-    /* main container */
     .cricket-container {
       max-width: 1400px;
       width: 100%;
@@ -34,7 +33,6 @@
       transition: all 0.2s ease;
     }
 
-    /* header */
     .header {
       background: linear-gradient(120deg, #0b3b2f, #0c2f25);
       padding: 1.2rem 2rem;
@@ -79,24 +77,6 @@
       font-size: 0.85rem;
     }
 
-    .logout-btn {
-      background: #e05a5a;
-      border: none;
-      color: white;
-      padding: 0.4rem 1.2rem;
-      border-radius: 30px;
-      font-weight: 600;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .logout-btn:hover {
-      background: #c13b3b;
-      transform: scale(0.96);
-    }
-
-    /* main content */
     .dashboard {
       padding: 2rem 2rem 1.5rem;
     }
@@ -187,7 +167,6 @@
       color: white;
     }
 
-    /* history panel */
     .history-panel {
       background: #fbfefc;
       border-radius: 1.8rem;
@@ -244,60 +223,6 @@
       font-style: italic;
     }
 
-    .hidden {
-      display: none !important;
-    }
-
-    /* login screen */
-    .login-screen {
-      min-height: 480px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-    }
-
-    .login-card {
-      background: white;
-      border-radius: 2rem;
-      padding: 2.5rem 2rem;
-      text-align: center;
-      max-width: 420px;
-      width: 100%;
-      box-shadow: 0 25px 40px rgba(0, 0, 0, 0.2);
-    }
-
-    .login-card h2 {
-      font-size: 2.2rem;
-      color: #1e5a48;
-      margin-bottom: 0.5rem;
-    }
-
-    .login-card p {
-      color: #537a6a;
-      margin-bottom: 1.8rem;
-    }
-
-    .login-btn {
-      background: linear-gradient(95deg, #f5b042, #e09d2c);
-      border: none;
-      padding: 0.8rem 2rem;
-      color: #1e3a2f;
-      font-weight: 800;
-      border-radius: 3rem;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: 0.2s;
-      width: 100%;
-    }
-
-    .login-btn:hover {
-      transform: scale(0.97);
-      background: #e09d2c;
-      color: white;
-    }
-
-    /* loading overlay */
     .loading-overlay {
       position: fixed;
       top: 0;
@@ -337,6 +262,10 @@
       border-top: 1px solid #d6e4de;
     }
 
+    .hidden {
+      display: none !important;
+    }
+
     @media (max-width: 700px) {
       body { padding: 1rem; }
       .player-name { font-size: 1.6rem; }
@@ -352,28 +281,17 @@
       <p>shared stats • live sync • every device same ledger</p>
     </div>
     <div class="user-panel">
-      <span class="user-status" id="userStatusSpan">⚡ connecting...</span>
-      <button class="logout-btn" id="logoutBtnGlobal">Exit</button>
+      <span class="user-status" id="userStatusSpan">🟢 Live Connected</span>
     </div>
   </div>
 
-  <!-- LOGIN SECTION (shown when not authenticated) -->
-  <div id="loginSection" class="login-screen">
-    <div class="login-card">
-      <h2>🏆 Join the Pavilion</h2>
-      <p>Sign in anonymously — access the shared scoreboard.<br>Any device, same three players, unified history.</p>
-      <button class="login-btn" id="loginBtnAction">🎯 Enter as Guest →</button>
-      <div style="margin-top: 1.8rem; font-size: 0.75rem; color:#7f9b8e;">⚡ Player 1 · Player 2 · Player 3 only</div>
-    </div>
-  </div>
-
-  <!-- MAIN APP (visible after auth) -->
-  <div id="appMain" class="hidden">
+  <!-- MAIN APP - Removed login screen entirely, always visible -->
+  <div id="appMain">
     <div class="dashboard">
       <div class="players-section">
         <h2>📊 Player Profiles</h2>
         <div class="players-grid" id="playersGridContainer">
-          <!-- dynamic cards will appear here -->
+          <!-- dynamic cards injected here -->
         </div>
       </div>
 
@@ -386,7 +304,7 @@
       </div>
     </div>
     <footer>
-      🔄 Real-time Firebase sync — every score appears for all logged-in users. Only the three designated players can receive scores.
+      🔄 Real-time Firebase sync — every score appears instantly for all devices. Three players only: Player 1, Player 2, Player 3.
     </footer>
   </div>
 </div>
@@ -398,14 +316,17 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  getDocs
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  query, 
+  orderBy,
+  serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
+// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDVADShdTKth5DLcqliIesrxUM2rJFWJ0Y",
   authDomain: "cricket-1fe27.firebaseapp.com",
@@ -416,34 +337,316 @@ const firebaseConfig = {
   measurementId: "G-KPP4EQ5YCY"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Example save score
-async function saveScore(player, score) {
-  await addDoc(collection(db, "cricketScores"), {
-    player: player,
-    score: score,
-    createdAt: new Date()
-  });
+// ----- Player Configuration -----
+const PLAYERS = [
+  { id: "player1", displayName: "Player 1", emoji: "🏏", baseColor: "#1f5e48" },
+  { id: "player2", displayName: "Player 2", emoji: "⚡", baseColor: "#2c6e52" },
+  { id: "player3", displayName: "Player 3", emoji: "🎯", baseColor: "#1e5a48" }
+];
 
-  alert("Score saved!");
+// In-memory aggregated scores (running total per player)
+let playerScoresMap = {
+  player1: 0,
+  player2: 0,
+  player3: 0
+};
+
+// Store all history entries for reference
+let allHistoryEntries = [];
+
+// DOM elements
+const playersGrid = document.getElementById("playersGridContainer");
+const matchHistoryListEl = document.getElementById("matchHistoryList");
+const emptyHistoryMsg = document.getElementById("emptyHistoryMsg");
+const loadingOverlay = document.getElementById("loadingOverlay");
+
+// Helper: Show/hide loading overlay
+function setLoading(isLoading) {
+  if (isLoading) {
+    loadingOverlay.classList.remove("hidden");
+  } else {
+    loadingOverlay.classList.add("hidden");
+  }
 }
 
-// Example load scores
-async function loadScores() {
-  const querySnapshot = await getDocs(
-    collection(db, "cricketScores")
+// Helper: Format timestamp
+function formatTimestamp(timestamp) {
+  if (!timestamp) return "Just now";
+  try {
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute:'2-digit', second:'2-digit' });
+  } catch(e) {
+    return "recent";
+  }
+}
+
+// Render all player cards with current aggregated totals
+function renderPlayerCards() {
+  if (!playersGrid) return;
+  
+  playersGrid.innerHTML = "";
+  
+  PLAYERS.forEach(player => {
+    const currentTotal = playerScoresMap[player.id] || 0;
+    
+    const card = document.createElement("div");
+    card.className = "player-card";
+    card.setAttribute("data-player-id", player.id);
+    
+    // Create inner HTML structure
+    card.innerHTML = `
+      <div class="player-name">${player.emoji} ${player.displayName}</div>
+      <div class="stats-row">
+        <span>🏆 Total Runs</span>
+        <strong id="total-${player.id}">${currentTotal}</strong>
+      </div>
+      <div class="stats-row">
+        <span>📈 Highest Knocks</span>
+        <strong>—</strong>
+      </div>
+      <div class="stats-row">
+        <span>🎯 Innings</span>
+        <strong id="innings-${player.id}">${countInningsForPlayer(player.id)}</strong>
+      </div>
+      <button class="add-score-btn" data-player="${player.id}">
+        ➕ Add Score
+      </button>
+    `;
+    
+    playersGrid.appendChild(card);
+  });
+  
+  // Attach event listeners to all "Add Score" buttons
+  document.querySelectorAll(".add-score-btn").forEach(btn => {
+    btn.removeEventListener("click", handleAddScoreClick);
+    btn.addEventListener("click", handleAddScoreClick);
+  });
+}
+
+// Count innings (number of entries) for a specific player
+function countInningsForPlayer(playerId) {
+  return allHistoryEntries.filter(entry => entry.player === playerId).length;
+}
+
+// Update the displayed totals and innings for all players
+function updateStatsUI() {
+  PLAYERS.forEach(player => {
+    const totalSpan = document.getElementById(`total-${player.id}`);
+    if (totalSpan) totalSpan.textContent = playerScoresMap[player.id] || 0;
+    
+    const inningsSpan = document.getElementById(`innings-${player.id}`);
+    if (inningsSpan) inningsSpan.textContent = countInningsForPlayer(player.id);
+  });
+}
+
+// Render match history from allHistoryEntries (latest first)
+function renderHistory() {
+  if (!matchHistoryListEl) return;
+  
+  if (!allHistoryEntries.length) {
+    emptyHistoryMsg.classList.remove("hidden");
+    matchHistoryListEl.innerHTML = "";
+    return;
+  }
+  
+  emptyHistoryMsg.classList.add("hidden");
+  
+  // Sort descending by timestamp (newest first)
+  const sortedEntries = [...allHistoryEntries].sort((a, b) => {
+    const timeA = a.timestamp?.toDate?.() || new Date(a.createdAt || 0);
+    const timeB = b.timestamp?.toDate?.() || new Date(b.createdAt || 0);
+    return timeB - timeA;
+  });
+  
+  matchHistoryListEl.innerHTML = sortedEntries.map(entry => {
+    const playerObj = PLAYERS.find(p => p.id === entry.player);
+    const playerName = playerObj ? playerObj.displayName : entry.player;
+    const scoreValue = entry.score || 0;
+    const timeLabel = formatTimestamp(entry.timestamp || entry.createdAt);
+    
+    return `
+      <div class="history-item">
+        <span class="history-match-badge">🏏 ${timeLabel}</span>
+        <div class="history-detail">
+          <span class="history-player">${playerName}</span> smashed 
+          <strong style="color:#cb7b1f;">${scoreValue} runs</strong>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// Recalculate total scores from history entries
+function recalculateTotals() {
+  // Reset totals
+  playerScoresMap = {
+    player1: 0,
+    player2: 0,
+    player3: 0
+  };
+  
+  allHistoryEntries.forEach(entry => {
+    const playerId = entry.player;
+    const score = Number(entry.score) || 0;
+    if (playerScoresMap.hasOwnProperty(playerId)) {
+      playerScoresMap[playerId] += score;
+    }
+  });
+  
+  updateStatsUI();
+}
+
+// Add score to Firestore (triggers realtime update via snapshot)
+async function addScoreToFirestore(playerId, scoreValue) {
+  if (!playerId || scoreValue === undefined) return;
+  const numericScore = Number(scoreValue);
+  if (isNaN(numericScore) || numericScore < 0) {
+    alert("Please enter a valid non-negative score (e.g., 4, 6, 12)");
+    return;
+  }
+  
+  if (numericScore > 500) {
+    if (!confirm("Score is unusually high (>500). Still add?")) return;
+  }
+  
+  setLoading(true);
+  try {
+    await addDoc(collection(db, "cricketScores"), {
+      player: playerId,
+      score: numericScore,
+      createdAt: serverTimestamp(),
+      timestamp: serverTimestamp()
+    });
+    // Success - UI will update via onSnapshot
+  } catch (error) {
+    console.error("Error adding score:", error);
+    alert("Failed to save score. Check your network and Firebase rules.");
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Event handler for Add Score buttons
+function handleAddScoreClick(event) {
+  const button = event.currentTarget;
+  const playerId = button.getAttribute("data-player");
+  if (!playerId) return;
+  
+  const playerObj = PLAYERS.find(p => p.id === playerId);
+  const playerDisplay = playerObj ? playerObj.displayName : playerId;
+  
+  const scoreInput = prompt(`🎯 Enter runs for ${playerDisplay}:`, "12");
+  if (scoreInput === null) return;
+  
+  const parsedScore = parseInt(scoreInput, 10);
+  if (isNaN(parsedScore)) {
+    alert("Please enter a number (runs).");
+    return;
+  }
+  
+  if (parsedScore < 0) {
+    alert("Score cannot be negative.");
+    return;
+  }
+  
+  addScoreToFirestore(playerId, parsedScore);
+}
+
+// ----- Firestore realtime listener -----
+function subscribeToScores() {
+  const scoresQuery = query(
+    collection(db, "cricketScores"),
+    orderBy("createdAt", "desc")  // Get all docs, but we manage local sorting
   );
-
-  querySnapshot.forEach((doc) => {
-    console.log(doc.data());
-  });
+  
+  // Listen to realtime updates
+  onSnapshot(scoresQuery, 
+    (snapshot) => {
+      // Rebuild local history array from Firestore
+      const newEntries = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        newEntries.push({
+          id: doc.id,
+          player: data.player,
+          score: data.score,
+          timestamp: data.timestamp || data.createdAt,
+          createdAt: data.createdAt
+        });
+      });
+      
+      allHistoryEntries = newEntries;
+      // Recalculate aggregated totals
+      recalculateTotals();
+      // Re-render match history (latest first)
+      renderHistory();
+      // Ensure cards are updated (totals and innings counts)
+      updateStatsUI();
+      
+      // Tiny edge: if player cards are not yet rendered, ensure they exist
+      if (!playersGrid.children.length) {
+        renderPlayerCards();
+      } else {
+        // refresh innings and totals on existing UI
+        updateStatsUI();
+      }
+      
+      // If no history, show placeholder is handled inside renderHistory
+    },
+    (error) => {
+      console.error("Firestore listener error:", error);
+      const statusSpan = document.getElementById("userStatusSpan");
+      if (statusSpan) statusSpan.textContent = "⚠️ Sync error";
+      alert("Unable to connect to Firestore. Check your Firebase security rules/permissions.");
+    }
+  );
 }
 
-// test
-window.saveScore = saveScore;
-window.loadScores = loadScores;
+// Initialize the entire application: render UI, setup listener
+function initApp() {
+  // Render initial player cards (with zero stats)
+  renderPlayerCards();
+  // Show live connection status
+  const statusSpan = document.getElementById("userStatusSpan");
+  if (statusSpan) statusSpan.textContent = "🟢 Live Connected";
+  
+  // Start listening to Firestore updates
+  subscribeToScores();
+  
+  // Additional check: after 2 seconds, if no entries found show demo welcome
+  setTimeout(() => {
+    if (allHistoryEntries.length === 0) {
+      // It's okay, just show empty state. optionally prefill with sample? Better not to spam firestore.
+      console.log("Waiting for real scores. Dashboard ready.");
+    }
+  }, 1000);
+}
+
+// Optional: Attach a global reset for debugging (not exposed by default but can be used for admin)
+// We keep everything clean, no authentication walls.
+
+// Start app when DOM ready
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}
+
+// Expose a small helper for debugging (optional)
+window.__cricketDebug = {
+  addSampleScores: async function() {
+    // Only for testing, can be ignored
+    console.log("Debug: add sample entries");
+    await addScoreToFirestore("player1", 45);
+    await addScoreToFirestore("player2", 32);
+    await addScoreToFirestore("player3", 67);
+    await addScoreToFirestore("player1", 12);
+  }
+};
 </script>
 </body>
 </html>
