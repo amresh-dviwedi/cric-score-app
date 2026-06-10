@@ -397,314 +397,53 @@
 </div>
 
 <script type="module">
-  // ----------------------------- YOUR FIREBASE CONFIGURATION -----------------------------
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-analytics.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
-  import { getFirestore, doc, onSnapshot, updateDoc, getDoc, setDoc, arrayUnion, deleteField } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDaKrPjlqDatXCnRnYMspG7hjf5qhBbHak",
-    authDomain: "sarv-cricket.firebaseapp.com",
-    databaseURL: "https://sarv-cricket-default-rtdb.firebaseio.com",
-    projectId: "sarv-cricket",
-    storageBucket: "sarv-cricket.firebasestorage.app",
-    messagingSenderId: "423725741493",
-    appId: "1:423725741493:web:ec0c0c3c175d7a6bd295fc",
-    measurementId: "G-QQZVXPG3CG"
-  };
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs
+} from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  
-  // Shared document reference (single source of truth across all devices)
-  const SHARED_STATS_ID = "cricket_shared_ledger";
-  const statsDocRef = doc(db, "cricketStats", SHARED_STATS_ID);
-  
-  // DOM elements
-  const loginSection = document.getElementById("loginSection");
-  const appMain = document.getElementById("appMain");
-  const userStatusSpan = document.getElementById("userStatusSpan");
-  const logoutBtn = document.getElementById("logoutBtnGlobal");
-  const loadingOverlay = document.getElementById("loadingOverlay");
-  const playersGridContainer = document.getElementById("playersGridContainer");
-  const matchHistoryList = document.getElementById("matchHistoryList");
-  const emptyHistoryMsg = document.getElementById("emptyHistoryMsg");
-  
-  // State
-  let currentData = null;      // { "Player 1": [45, 67, ...], "Player 2": [...], "Player 3": [...] }
-  let unsubscribeFirestore = null;
-  let currentUser = null;
-  
-  // Helper functions
-  const setLoading = (show) => {
-    loadingOverlay.style.display = show ? "flex" : "none";
-  };
-  
-  const escapeHtml = (str) => {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-      if (m === '&') return '&amp;';
-      if (m === '<') return '&lt;';
-      if (m === '>') return '&gt;';
-      return m;
-    });
-  };
-  
-  // Render player cards from currentData
-  const renderPlayerCards = () => {
-    if (!currentData) return;
-    const requiredPlayers = ["Player 1", "Player 2", "Player 3"];
-    playersGridContainer.innerHTML = "";
-    
-    for (let player of requiredPlayers) {
-      const scores = currentData[player] || [];
-      const totalMatches = scores.length;
-      const totalRuns = scores.reduce((acc, val) => acc + val, 0);
-      const avg = totalMatches > 0 ? (totalRuns / totalMatches).toFixed(2) : "—";
-      const highest = totalMatches > 0 ? Math.max(...scores) : "—";
-      
-      const card = document.createElement("div");
-      card.className = "player-card";
-      card.innerHTML = `
-        <div class="player-name">${escapeHtml(player)}</div>
-        <div class="stats-row"><span>🏏 Matches</span><strong>${totalMatches}</strong></div>
-        <div class="stats-row"><span>🏃‍♂️ Total Runs</span><strong>${totalRuns}</strong></div>
-        <div class="stats-row"><span>📊 Batting Avg</span><strong>${avg !== "—" ? avg : "—"}</strong></div>
-        <div class="stats-row"><span>⚡ Highest Score</span><strong>${highest !== "—" ? highest : "—"}</strong></div>
-        <button class="add-score-btn" data-player="${player}">+ Add Match Score</button>
-      `;
-      playersGridContainer.appendChild(card);
-    }
-    
-    // Attach event listeners to all add buttons
-    document.querySelectorAll(".add-score-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        const playerName = btn.getAttribute("data-player");
-        openScoreDialog(playerName);
-      });
-    });
-  };
-  
-  // Render match history (all matches across players, latest match number first)
-  const renderMatchHistory = () => {
-    if (!currentData) return;
-    const allEntries = [];
-    const required = ["Player 1", "Player 2", "Player 3"];
-    
-    for (let player of required) {
-      const scores = currentData[player] || [];
-      scores.forEach((score, idx) => {
-        allEntries.push({
-          player: player,
-          score: score,
-          matchNumber: idx + 1,
-          timestampKey: idx
-        });
-      });
-    }
-    
-    if (allEntries.length === 0) {
-      emptyHistoryMsg.classList.remove("hidden");
-      matchHistoryList.innerHTML = "";
-      return;
-    }
-    
-    emptyHistoryMsg.classList.add("hidden");
-    // Sort by matchNumber descending (latest match rounds first)
-    allEntries.sort((a, b) => b.matchNumber - a.matchNumber);
-    
-    matchHistoryList.innerHTML = allEntries.map(entry => `
-      <div class="history-item">
-        <div class="history-match-badge">Match ${entry.matchNumber}</div>
-        <div class="history-detail">
-          <span class="history-player">${escapeHtml(entry.player)}</span> scored <strong>${entry.score}</strong> runs
-        </div>
-      </div>
-    `).join("");
-  };
-  
-  const refreshFullUI = () => {
-    renderPlayerCards();
-    renderMatchHistory();
-  };
-  
-  // Dialog for adding a new score to specific player
-  const openScoreDialog = (playerName) => {
-    if (!currentData) {
-      alert("Data is loading, please wait...");
-      return;
-    }
-    const scoreRaw = prompt(`🏏 ${playerName} — Enter runs scored in the next match:\n(0 to 300, whole numbers)`, "0");
-    if (scoreRaw === null) return;
-    const runs = parseInt(scoreRaw, 10);
-    if (isNaN(runs) || runs < 0 || runs > 300) {
-      alert("Please enter a valid score between 0 and 300.");
-      return;
-    }
-    addScoreToFirestore(playerName, runs);
-  };
-  
-  // Append score to player's array in Firestore (using transaction to avoid conflicts)
-  const addScoreToFirestore = async (playerName, score) => {
-    setLoading(true);
-    try {
-      // get latest document first
-      const docSnap = await getDoc(statsDocRef);
-      if (!docSnap.exists()) {
-        // initialize fresh structure
-        const init = { "Player 1": [], "Player 2": [], "Player 3": [] };
-        await setDoc(statsDocRef, init);
-      }
-      const existingData = docSnap.exists() ? docSnap.data() : { "Player 1": [], "Player 2": [], "Player 3": [] };
-      const currentScores = existingData[playerName] || [];
-      const updatedScores = [...currentScores, score];
-      const updatePayload = { [playerName]: updatedScores };
-      await updateDoc(statsDocRef, updatePayload);
-      // The real-time listener will update UI automatically
-    } catch (err) {
-      console.error("Error adding score:", err);
-      alert("Failed to save score. Check network or Firebase security rules.");
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Ensure Firestore has the three required players and initialize if needed
-  const ensureValidStructure = async () => {
-    const docSnap = await getDoc(statsDocRef);
-    if (!docSnap.exists()) {
-      const defaultData = {
-        "Player 1": [],
-        "Player 2": [],
-        "Player 3": []
-      };
-      await setDoc(statsDocRef, defaultData);
-      return defaultData;
-    }
-    const data = docSnap.data();
-    let modified = false;
-    const required = ["Player 1", "Player 2", "Player 3"];
-    for (let req of required) {
-      if (!data[req]) {
-        data[req] = [];
-        modified = true;
-      }
-    }
-    if (modified) {
-      await setDoc(statsDocRef, data);
-    }
-    return data;
-  };
-  
-  // Subscribe to realtime Firestore updates
-  const subscribeToLiveUpdates = () => {
-    if (unsubscribeFirestore) unsubscribeFirestore();
-    return onSnapshot(statsDocRef, async (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        currentData = docSnapshot.data();
-        // sanitize: ensure always three players
-        const required = ["Player 1", "Player 2", "Player 3"];
-        let needsRepair = false;
-        for (let p of required) {
-          if (!currentData[p]) {
-            currentData[p] = [];
-            needsRepair = true;
-          }
-        }
-        if (needsRepair) {
-          await setDoc(statsDocRef, currentData);
-        }
-        refreshFullUI();
-      } else {
-        // if document is missing, create default structure
-        const defaultData = { "Player 1": [], "Player 2": [], "Player 3": [] };
-        await setDoc(statsDocRef, defaultData);
-        currentData = defaultData;
-        refreshFullUI();
-      }
-    }, (error) => {
-      console.error("Snapshot listener error:", error);
-      alert("Realtime connection issue. Please refresh or check Firebase security rules.");
-    });
-  };
-  
-  // ---------- AUTHENTICATION FLOW (Anonymous but consistent across devices) ----------
-  const initAuth = () => {
-    setLoading(true);
-    signInAnonymously(auth).catch(error => {
-      console.error("Anonymous sign-in error:", error);
-      alert("Authentication failed. Ensure Anonymous Auth is enabled in Firebase Console.");
-      setLoading(false);
-    });
-    
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        currentUser = user;
-        userStatusSpan.innerHTML = `🏏 Live · ${user.uid.slice(0, 6)}`;
-        loginSection.classList.add("hidden");
-        appMain.classList.remove("hidden");
-        setLoading(true);
-        try {
-          await ensureValidStructure();
-          unsubscribeFirestore = subscribeToLiveUpdates();
-        } catch (err) {
-          console.error(err);
-          alert("Firestore initialization failed.");
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        // Not logged in: show login screen
-        loginSection.classList.remove("hidden");
-        appMain.classList.add("hidden");
-        if (unsubscribeFirestore) {
-          unsubscribeFirestore();
-          unsubscribeFirestore = null;
-        }
-        currentData = null;
-        playersGridContainer.innerHTML = "";
-        matchHistoryList.innerHTML = "";
-        emptyHistoryMsg.classList.remove("hidden");
-        userStatusSpan.innerHTML = "⚡ offline";
-        setLoading(false);
-      }
-    });
-  };
-  
-  const logoutUser = async () => {
-    setLoading(true);
-    try {
-      if (unsubscribeFirestore) {
-        unsubscribeFirestore();
-        unsubscribeFirestore = null;
-      }
-      await signOut(auth);
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const signInAgain = () => {
-    setLoading(true);
-    signInAnonymously(auth).catch(e => {
-      alert("Sign-in error: " + e.message);
-      setLoading(false);
-    });
-  };
-  
-  // Attach event handlers after DOM is ready
-  window.addEventListener("DOMContentLoaded", () => {
-    logoutBtn.addEventListener("click", logoutUser);
-    const loginBtn = document.getElementById("loginBtnAction");
-    if (loginBtn) loginBtn.addEventListener("click", signInAgain);
-    initAuth();
+const firebaseConfig = {
+  apiKey: "AIzaSyDVADShdTKth5DLcqliIesrxUM2rJFWJ0Y",
+  authDomain: "cricket-1fe27.firebaseapp.com",
+  projectId: "cricket-1fe27",
+  storageBucket: "cricket-1fe27.firebasestorage.app",
+  messagingSenderId: "899030654947",
+  appId: "1:899030654947:web:090614305cdb8ecfe4cad6",
+  measurementId: "G-KPP4EQ5YCY"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Example save score
+async function saveScore(player, score) {
+  await addDoc(collection(db, "cricketScores"), {
+    player: player,
+    score: score,
+    createdAt: new Date()
   });
+
+  alert("Score saved!");
+}
+
+// Example load scores
+async function loadScores() {
+  const querySnapshot = await getDocs(
+    collection(db, "cricketScores")
+  );
+
+  querySnapshot.forEach((doc) => {
+    console.log(doc.data());
+  });
+}
+
+// test
+window.saveScore = saveScore;
+window.loadScores = loadScores;
 </script>
 </body>
 </html>
